@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ProgressBar } from '../ui/ProgressBar';
+import { useBecameTrue } from '../../lib/useBecameTrue';
 
 interface NumberInputProps {
   value: number | undefined;
@@ -14,20 +15,22 @@ export function NumberInput({ value, target, unit = '', direction = 'atLeast', o
   const [draft, setDraft] = useState(value !== undefined ? String(value) : '');
   const met = value !== undefined && (direction === 'atLeast' ? value >= target : value <= target);
   const fraction = value === undefined ? 0 : direction === 'atLeast' ? value / target : target > 0 ? 1 - value / target : 1;
+  const celebrate = useBecameTrue(met);
 
   return (
     <div>
       <ProgressBar
         fraction={fraction}
         colorClass={met ? 'bg-good-500' : 'bg-ember-500'}
+        celebrate={celebrate}
         label={
-          <span>
+          <span className="text-base">
             {direction === 'atMost' ? 'under' : 'target'} {target} {unit}
             {met && <span className="ml-2 text-good-500">✓</span>}
           </span>
         }
       />
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-3 flex items-center gap-2">
         <input
           type="number"
           inputMode="decimal"
@@ -37,9 +40,9 @@ export function NumberInput({ value, target, unit = '', direction = 'atLeast', o
             const n = Number(draft);
             if (!Number.isNaN(n)) onSet(n);
           }}
-          className="min-h-11 w-24 rounded-md border border-dungeon-500 bg-dungeon-800 px-2 text-lg text-parchment-50"
+          className="min-h-14 w-28 rounded-xl border border-dungeon-500 bg-dungeon-800 px-3 text-xl text-parchment-50"
         />
-        <span className="text-sm text-parchment-200">{unit}</span>
+        <span className="text-base text-parchment-200">{unit}</span>
       </div>
     </div>
   );

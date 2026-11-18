@@ -4,6 +4,8 @@ import { Habit } from '../api/types';
 import { today, addDays, isEditable, weekKey } from '../lib/day';
 import { computeDailyScore, isGoodDay, computeStreaks } from '../lib/scoring';
 import { Card, SectionTitle } from '../components/ui/Card';
+import { useBecameTrue } from '../lib/useBecameTrue';
+import * as haptics from '../lib/haptics';
 import { ProgressBar } from '../components/ui/ProgressBar';
 import { WorkoutCard } from '../components/habit-inputs/WorkoutCard';
 import { ChunkStepper } from '../components/habit-inputs/ChunkStepper';
@@ -106,33 +108,54 @@ export function Today() {
     }
   }
 
+  const justBecameGoodDay = useBecameTrue(good);
+
   return (
     <div className="space-y-4 pb-24">
-      <Card>
+      <Card className={justBecameGoodDay ? 'animate-flash-good' : ''}>
         <div className="flex items-center justify-between">
-          <button disabled={!canGoPrev} onClick={() => setSelectedDate(addDays(selectedDate, -1))} className="text-ember-400 disabled:opacity-30">
+          <button
+            disabled={!canGoPrev}
+            onClick={() => {
+              haptics.tap();
+              setSelectedDate(addDays(selectedDate, -1));
+            }}
+            className="min-h-11 px-2 text-base font-semibold text-ember-400 disabled:opacity-30"
+          >
             ← Prev
           </button>
           <div className="text-center">
-            <div className="text-lg font-bold text-parchment-50">{selectedDate === todayStr ? 'Today' : selectedDate}</div>
+            <div className="text-2xl font-bold text-parchment-50">{selectedDate === todayStr ? 'Today' : selectedDate}</div>
             {!editable && <div className="text-xs text-parchment-300">read-only (outside backfill window)</div>}
           </div>
-          <button disabled={!canGoNext} onClick={() => setSelectedDate(addDays(selectedDate, 1))} className="text-ember-400 disabled:opacity-30">
+          <button
+            disabled={!canGoNext}
+            onClick={() => {
+              haptics.tap();
+              setSelectedDate(addDays(selectedDate, 1));
+            }}
+            className="min-h-11 px-2 text-base font-semibold text-ember-400 disabled:opacity-30"
+          >
             Next →
           </button>
         </div>
-        <div className="mt-3">
+        <div className="mt-4">
           <ProgressBar
             fraction={dailyResult.score}
             colorClass={good ? 'bg-good-500' : 'bg-ember-500'}
             label={
-              <span>
-                Score {(dailyResult.score * 100).toFixed(0)}% {good && <span className="text-good-500">· Good Day</span>}
+              <span className="text-lg font-semibold">
+                Score {(dailyResult.score * 100).toFixed(0)}%{good && <span className="text-good-500"> · Good Day</span>}
               </span>
             }
           />
         </div>
-        <div className="mt-2 flex justify-between text-sm text-parchment-200">
+        {justBecameGoodDay && (
+          <div className="mt-3 animate-pop-in rounded-xl bg-good-500/15 px-4 py-2 text-center text-base font-semibold text-good-500">
+            🎉 Good day! The party is proud of you.
+          </div>
+        )}
+        <div className="mt-3 flex justify-between text-base text-parchment-200">
           <span>🔥 Current streak: {streaks.current}</span>
           <span>🏆 Longest: {streaks.longest}</span>
         </div>

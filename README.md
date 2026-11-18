@@ -71,7 +71,8 @@ backend/    Code.gs — a single Google Apps Script Web App bound to your Sheet
    ```
    VITE_API_URL=https://script.google.com/macros/s/AKfycb.../exec
    ```
-   Leave it blank to keep running in demo mode.
+   Leave it blank to keep running in demo mode. (There's also an optional
+   `VITE_VAPID_PUBLIC_KEY` for push reminders — see section 7.)
 3. Install dependencies and run locally:
    ```bash
    cd frontend
@@ -102,12 +103,21 @@ you'd rather use those — the only thing that changes is where you set `VITE_AP
 
 ### GitHub Pages
 
-1. In `frontend/vite.config.ts`, add `base: '/<your-repo-name>/'` to the `defineConfig`
-   call (GitHub Pages serves from a subpath, unlike Netlify/Vercel).
-2. `npm run build` inside `frontend/`, then publish `frontend/dist` to a `gh-pages`
-   branch (e.g. with the `gh-pages` npm package, or a GitHub Actions workflow).
-3. Set `VITE_API_URL` as a build-time environment variable in whatever builds it (a
-   GitHub Actions secret, most likely), since Pages has no server-side env var support.
+This repo already includes a working setup for this (what the live deployed copy
+actually uses): [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml)
+builds `frontend/` with `vite.config.ts`'s `base` automatically switched to
+`/<repo-name>/` (via the `GH_PAGES=true` build env var the workflow sets — Pages serves
+from a subpath, unlike Netlify/Vercel/localhost) and deploys it to GitHub Pages on every
+push to `master`. One-time setup:
+
+1. Repo **must be public** — Pages isn't free on private repos.
+2. Repo **Settings → Pages → Build and deployment → Source**: "GitHub Actions" (or run
+   `gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow`).
+3. Repo **Settings → Secrets and variables → Actions**: add a `VITE_API_URL` secret with
+   your Web App URL (and, once you've set up push reminders below, `VITE_VAPID_PUBLIC_KEY`
+   too).
+4. Push to `master`, or run the workflow manually (Actions tab → "Deploy to GitHub
+   Pages" → Run workflow). Your site is then at `https://<owner>.github.io/<repo-name>/`.
 
 ### Vercel
 
@@ -124,6 +134,51 @@ you'd rather use those — the only thing that changes is where you set `VITE_AP
 Once installed, the app opens full-screen with its own icon, and continues to work
 offline for logging (writes sync once you're back online).
 
+## 7. Push reminders (optional)
+
+If you haven't logged anything by a time you pick, the app can send you a real push
+notification — no Firebase, no third-party push service account; `Code.gs` signs the
+required VAPID authentication itself (see "How push reminders work" below).
+
+1. **Update your Apps Script**: paste the latest [`backend/Code.gs`](backend/Code.gs)
+   over your existing script (it now includes the push-sending code and a
+   `PushSubscriptions` sheet), save, and create a **new deployment version** (Deploy →
+   Manage deployments → edit → New version) — editing the file alone doesn't go live.
+2. **Run `setup` again** (function dropdown → `setup` → Run). It's safe to re-run — it
+   only creates what's missing, and this time it also generates a VAPID key pair
+   (stored server-side only, in Script Properties, never in a sheet cell) the first
+   time. Open **View → Logs** (or Executions) and copy the public key it printed.
+3. Paste that public key into `frontend/.env` as `VITE_VAPID_PUBLIC_KEY`, and into the
+   matching GitHub secret, then redeploy the frontend (push to `master`, or re-run the
+   Netlify/Vercel build).
+4. **Schedule the sender**: in the Apps Script editor, run `installReminderTrigger`
+   once. This installs a time-driven trigger that checks every 15 minutes for anyone
+   who's enabled reminders, hasn't logged anything yet today, and has a configured time
+   within that window.
+5. In the app, open **Settings → Reminders**, set a time (or two), and tap **Enable
+   Reminders** — this asks for notification permission and registers your subscription.
+6. To test without waiting: in the Apps Script editor, run `sendTestPush` with your
+   `playerId` as the argument (find it by checking the `Players` sheet) to fire one push
+   immediately.
+
+### How push reminders work (and their limits)
+
+- **No service-account keys**: sending Web Push normally means Firebase Cloud Messaging
+  (needs a Google Cloud service-account key) or a server library. Neither fits this
+  project's "no services, no secret keys" constraint, so `Code.gs` implements the
+  **VAPID** (RFC 8292) authentication itself — a from-scratch P-256 ECDSA signer using
+  only `Utilities`' SHA-256/HMAC-SHA256 (Apps Script has no native ECDSA). This math is
+  unit-tested in `frontend/src/lib/__tests__/vapid.test.ts` against RFC 6979's own
+  published P-256/SHA-256 test vectors before being ported into `Code.gs`.
+- **Payload-less pushes**: encrypting a push body (RFC 8291) needs ECDH + HKDF +
+  AES-128-GCM on top of the above — out of scope here. Every reminder is sent empty, and
+  the service worker ([`public/push-sw.js`](frontend/public/push-sw.js)) shows a fixed
+  message ("⏰ you haven't logged today yet"); it can't say anything more specific per
+  notification without that extra encryption layer.
+- **~15-minute granularity**: the reminder check runs every 15 minutes and matches your
+  chosen time within ±7 minutes, so expect some jitter rather than a to-the-minute ping.
+- **One subscription per player**: registering on a new device replaces the old one.
+
 ## Demo mode
 
 Don't set `VITE_API_URL` (or leave it blank) and the app generates 4 fake players —
@@ -139,7 +194,8 @@ reloading regenerates the same seeded data. Login/habit-edit actions are no-ops.
 cd frontend
 npm install
 npm test     # Vitest — day-rollover, streaks, cheat-days, weekly study, fair
-             # consistency, XP/levels, floors/runs, and badges, all pure-function tested
+             # consistency, XP/levels, floors/runs, badges, and the VAPID P-256/ECDSA
+             # signing math (against RFC 6979's own test vectors), all pure-function tested
 npm run build  # tsc -b && vite build
 ```
 
@@ -201,7 +257,11 @@ All of the interesting logic is pure, dependency-free TypeScript, unit tested in
   writes in `LockService` to avoid lost updates, which is sufficient at the scale of
   ~8 people logging a few times a day, but not for high write concurrency.
 - Hosting instructions default to **Netlify** for simplicity; GitHub Pages and Vercel
-  are both documented as drop-in alternatives.
+  are both documented as drop-in alternatives — the live deployed copy actually uses
+  GitHub Pages via the included Actions workflow.
+- **Push reminders are payload-less and ~15-minute-grained** (see section 7) — a
+  deliberate tradeoff to avoid needing RFC 8291 payload encryption (ECDH+HKDF+AES-GCM)
+  on top of the VAPID signing Apps Script already has to do from scratch.
 
 ## Assumptions made during the build
 

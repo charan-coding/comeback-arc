@@ -3,6 +3,7 @@ import { Habit } from '../../api/types';
 import { Card, SectionTitle } from '../ui/Card';
 import { ChunkStepper } from './ChunkStepper';
 import { HangStopwatch } from './HangStopwatch';
+import { useBecameTrue } from '../../lib/useBecameTrue';
 
 interface WorkoutCardProps {
   habits: Habit[]; // the workout-group habits, in any order
@@ -21,17 +22,18 @@ export function WorkoutCard({ habits, valuesByHabitId, onAdd }: WorkoutCardProps
   const hangHabit = habits.find((h) => h.habitId === 'workout_hang');
   const otherHabits = habits.filter((h) => h.habitId !== 'workout_hang');
   const allMet = habits.every((h) => (valuesByHabitId[h.habitId] ?? 0) >= h.target);
+  const celebrate = useBecameTrue(allMet);
 
   return (
-    <Card>
-      <div className="mb-3 flex items-center justify-between">
+    <Card className={celebrate ? 'animate-flash-good' : ''}>
+      <div className="mb-4 flex items-center justify-between">
         <SectionTitle>Daily Workout</SectionTitle>
-        {allMet && <span className="text-sm text-good-500">Quest complete</span>}
+        {allMet && <span className={`text-base font-semibold text-good-500 ${celebrate ? 'animate-pop-in' : ''}`}>⚔️ Quest complete</span>}
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         {otherHabits.map((habit) => (
           <div key={habit.habitId}>
-            <div className="mb-1 text-sm font-semibold text-parchment-100">{habit.name.replace('Workout: ', '')}</div>
+            <div className="mb-1.5 text-base font-semibold text-parchment-100">{habit.name.replace('Workout: ', '')}</div>
             <ChunkStepper
               value={valuesByHabitId[habit.habitId] ?? 0}
               target={habit.target}
@@ -43,7 +45,7 @@ export function WorkoutCard({ habits, valuesByHabitId, onAdd }: WorkoutCardProps
         ))}
         {hangHabit && (
           <div>
-            <div className="mb-1 text-sm font-semibold text-parchment-100">Dead Hangs</div>
+            <div className="mb-1.5 text-base font-semibold text-parchment-100">Dead Hangs</div>
             <HangStopwatch
               totalSeconds={valuesByHabitId[hangHabit.habitId] ?? 0}
               targetSeconds={hangHabit.target}

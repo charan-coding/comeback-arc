@@ -1,5 +1,6 @@
 import React from 'react';
 import { minutesToHhmm, hhmmToMinutes, minutesSinceRollover } from '../../lib/day';
+import { useBecameTrue } from '../../lib/useBecameTrue';
 
 interface TimeInputProps {
   valueMinutes: number | undefined;
@@ -13,19 +14,24 @@ export function TimeInput({ valueMinutes, targetMinutes, toleranceMinutes, rollo
   const met =
     valueMinutes !== undefined &&
     minutesSinceRollover(valueMinutes, rolloverHour) <= minutesSinceRollover(targetMinutes, rolloverHour) + toleranceMinutes;
+  const celebrate = useBecameTrue(met);
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center gap-3">
       <input
         type="time"
         value={valueMinutes !== undefined ? minutesToHhmm(valueMinutes) : ''}
         onChange={(e) => {
           if (e.target.value) onChange(hhmmToMinutes(e.target.value));
         }}
-        className="min-h-11 rounded-md border border-dungeon-500 bg-dungeon-800 px-3 py-2 text-lg text-parchment-50"
+        className="min-h-14 rounded-xl border border-dungeon-500 bg-dungeon-800 px-3 py-2 text-xl text-parchment-50"
       />
-      <span className="text-sm text-parchment-200">target {minutesToHhmm(targetMinutes)}</span>
-      {valueMinutes !== undefined && <span className={met ? 'text-good-500' : 'text-hp-500'}>{met ? '✓' : '✗'}</span>}
+      <span className="text-base text-parchment-200">target {minutesToHhmm(targetMinutes)}</span>
+      {valueMinutes !== undefined && (
+        <span className={`text-xl ${met ? 'text-good-500' : 'text-hp-500'} ${celebrate ? 'animate-pop-in' : ''}`}>
+          {met ? '✓' : '✗'}
+        </span>
+      )}
     </div>
   );
 }

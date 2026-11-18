@@ -73,6 +73,19 @@ export async function logBatch(playerId: string, passphrase: string, entries: Ba
   return post<{ updatedAt: string; rejected: BatchEntry[] }>({ action: 'logBatch', playerId, passphrase, entries });
 }
 
+export interface PushSubscriptionJson {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+}
+
+export async function registerPush(playerId: string, passphrase: string, subscription: PushSubscriptionJson, reminderTimes: string[]) {
+  return post<{ ok: true }>({ action: 'registerPush', playerId, passphrase, subscription, reminderTimes });
+}
+
+export async function unregisterPush(playerId: string, passphrase: string) {
+  return post<{ ok: true }>({ action: 'unregisterPush', playerId, passphrase });
+}
+
 export async function setHabitOverride(
   playerId: string,
   passphrase: string,

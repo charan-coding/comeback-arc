@@ -37,6 +37,27 @@ export default {
         pixel: ['"Press Start 2P"', 'monospace'],
         parchment: ['Georgia', 'serif'],
       },
+      keyframes: {
+        'pop-in': {
+          '0%': { transform: 'scale(0.85)', opacity: '0' },
+          '60%': { transform: 'scale(1.04)', opacity: '1' },
+          '100%': { transform: 'scale(1)', opacity: '1' },
+        },
+        'flash-good': {
+          '0%': { boxShadow: '0 0 0 0 rgb(var(--good-500) / 0.6)' },
+          '100%': { boxShadow: '0 0 0 12px rgb(var(--good-500) / 0)' },
+        },
+        wiggle: {
+          '0%, 100%': { transform: 'rotate(0deg)' },
+          '25%': { transform: 'rotate(-4deg)' },
+          '75%': { transform: 'rotate(4deg)' },
+        },
+      },
+      animation: {
+        'pop-in': 'pop-in 280ms cubic-bezier(0.34, 1.56, 0.64, 1)',
+        'flash-good': 'flash-good 700ms ease-out',
+        wiggle: 'wiggle 220ms ease-in-out',
+      },
     },
   },
   plugins: [],

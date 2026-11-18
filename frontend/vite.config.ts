@@ -2,6 +2,10 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// Avoids depending on @types/node (which globally redefines Uint8Array in a way that
+// conflicts with DOM lib types used by src/lib/push.ts) just for this one env read.
+declare const process: { env: Record<string, string | undefined> };
+
 // GitHub Pages serves this app from a /<repo-name>/ subpath; Netlify/Vercel serve it from
 // the root. The deploy workflow sets GH_PAGES=true only when building for Pages.
 const base = process.env.GH_PAGES === 'true' ? '/comeback-arc/' : '/';
@@ -31,6 +35,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        // Appends our push/notificationclick handlers to the generated service worker
+        // without giving up Workbox's own offline-caching generation (`generateSW`).
+        importScripts: ['push-sw.js'],
       },
     }),
   ],

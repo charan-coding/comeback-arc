@@ -42,9 +42,13 @@ function Shell() {
             key={tab.to}
             to={tab.to}
             end={tab.to === '/'}
-            className={({ isActive }) => `flex flex-1 flex-col items-center py-2 text-xs ${isActive ? 'text-ember-400' : 'text-parchment-300'}`}
+            className={({ isActive }) =>
+              `flex flex-1 flex-col items-center gap-0.5 py-3 text-sm font-medium transition-transform active:scale-90 ${
+                isActive ? 'text-ember-400' : 'text-parchment-300'
+              }`
+            }
           >
-            <span className="text-lg">{tab.icon}</span>
+            <span className="text-2xl">{tab.icon}</span>
             {tab.label}
           </NavLink>
         ))}
