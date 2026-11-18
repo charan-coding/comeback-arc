@@ -52,6 +52,7 @@ export function parsePlayers(rows: RawRow[]): Player[] {
     class: String(r.class),
     passHash: '',
     createdAt: String(r.createdAt),
+    spriteUrl: toOptionalStr(r.spriteUrl),
   }));
 }
 

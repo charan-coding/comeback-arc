@@ -179,6 +179,36 @@ required VAPID authentication itself (see "How push reminders work" below).
   chosen time within ±7 minutes, so expect some jitter rather than a to-the-minute ping.
 - **One subscription per player**: registering on a new device replaces the old one.
 
+## 8. Arena: daily Boss Fight (optional sprite upload)
+
+A competitive layer, separate from the cooperative Party screen: every habit you
+complete today earns a relic (+2 damage if it's a core habit, +1 if bonus); every
+habit left undone by rollover gives you a curse (**Vulnerable**, +10%/+20% damage
+taken, for an incomplete Body/Fuel habit; **Weak**, -10%/-20% damage dealt, for an
+incomplete Mind/Discipline habit). Each morning, the **Arena** tab shows yesterday's
+free-for-all — everyone fights everyone simultaneously each round until one player (or
+nobody) is left standing — plus a running win/loss record. This is entirely derived
+from your existing `Logs`/`Habits` data (`frontend/src/lib/combat.ts`, unit-tested) —
+no new Sheet, no backend changes needed to see it.
+
+**Uploading a sprite** (optional, to show your own picture instead of the default
+avatar) does need the latest `Code.gs`: it adds a `spriteUrl` column to `Players` and
+saves uploads to a Drive folder ("Comeback Arc Sprites") via `DriveApp` — no new
+service or key, just an extra Drive permission Apps Script will ask you to approve the
+next time you authorize (same "Advanced → Go to (unsafe) → Allow" flow as before). Set
+it up on the Me screen, under "Arena Sprite".
+
+### A balance note
+
+With a very consistent player (most habits done most days), per-day attack totals can
+get large relative to HP, and — since everyone damages everyone simultaneously each
+round — fights between several high-performing players can end in a near-simultaneous
+wipe, with the "winner" decided by the smallest overkill rather than a clean survival.
+That's an intentional, deterministic tiebreak (shown in the UI as e.g. "-2 HP
+(overkill)"), not a bug, but if it feels too chaotic for your group, easy knobs to
+retune in `combat.ts` are: splitting each attacker's damage across their living
+opponents instead of dealing full damage to each, or raising the HP base.
+
 ## Demo mode
 
 Don't set `VITE_API_URL` (or leave it blank) and the app generates 4 fake players —
@@ -236,6 +266,8 @@ All of the interesting logic is pure, dependency-free TypeScript, unit tested in
   have logged anything).
 - **`rpg.ts`** — XP/levels/class titles, weekly "floors" (pass = good average score +
   clearing weekly habits), run history (consecutive cleared floors), and badges.
+- **`combat.ts`** — the Arena's relics/curses/N-player fight simulation and win/loss
+  history, all derived from `scoring.ts`'s `perHabit` map (see section 8).
 
 ## Known assumptions & limitations
 
@@ -262,6 +294,13 @@ All of the interesting logic is pure, dependency-free TypeScript, unit tested in
 - **Push reminders are payload-less and ~15-minute-grained** (see section 7) — a
   deliberate tradeoff to avoid needing RFC 8291 payload encryption (ECDH+HKDF+AES-GCM)
   on top of the VAPID signing Apps Script already has to do from scratch.
+- **The Arena's fight is recomputed fresh on every load**, not stored anywhere — it's a
+  pure function of `Logs`/`Habits`, so there's nothing to keep in sync and no risk of a
+  stale cached result.
+- **Weekly `study` doesn't participate** in relics/curses (it doesn't resolve to
+  done/not-done on a single day the way daily habits do).
+- Relic/curse names are original flavor text (no copyrighted IP); only the habit's
+  tier (core/bonus) and category drive the actual numbers.
 
 ## Assumptions made during the build
 

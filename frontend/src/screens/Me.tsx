@@ -1,15 +1,19 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useApp } from '../store/AppProvider';
 import { today, weekStart, addDays, daysBetween, minutesToHhmm } from '../lib/day';
 import { computeStreaks } from '../lib/scoring';
 import { totalXp, levelFromXp, classTitle, computeFloor, computeRuns, computeEarnedBadges, BADGE_DEFINITIONS } from '../lib/rpg';
 import { Card, SectionTitle } from '../components/ui/Card';
 import { ProgressBar } from '../components/ui/ProgressBar';
+import { compressSpriteFile } from '../lib/sprite';
 
 export function Me() {
-  const { session, players, logs, myHabits, baseHabits, config, setOverride, logout, isDemoMode } = useApp();
+  const { session, players, logs, myHabits, baseHabits, config, setOverride, uploadSprite, logout, isDemoMode } = useApp();
   const todayStr = today(config.rolloverHour);
   const [editingHabits, setEditingHabits] = useState(false);
+  const [spriteBusy, setSpriteBusy] = useState(false);
+  const [spriteError, setSpriteError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const player = players.find((p) => p.playerId === session?.playerId);
   const myLogs = useMemo(() => logs.filter((l) => l.playerId === session?.playerId), [logs, session]);
@@ -46,6 +50,22 @@ export function Me() {
 
   if (!session || !player) return null;
 
+  async function handleSpriteChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSpriteBusy(true);
+    setSpriteError(null);
+    try {
+      const { base64, mimeType } = await compressSpriteFile(file);
+      await uploadSprite(base64, mimeType);
+    } catch (err) {
+      setSpriteError(err instanceof Error ? err.message : 'Could not upload that image');
+    } finally {
+      setSpriteBusy(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
   return (
     <div className="space-y-4 pb-24">
       <Card>
@@ -71,6 +91,32 @@ export function Me() {
           <span>🔥 Streak: {streaks.current}</span>
           <span>🏆 Best: {streaks.longest}</span>
           <span>✨ Total XP: {xp}</span>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="flex items-center gap-4">
+          <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-xl border-2 border-dungeon-500 bg-dungeon-800">
+            {player.spriteUrl ? (
+              <img src={player.spriteUrl} alt={`${player.name}'s sprite`} className="h-full w-full object-cover" />
+            ) : (
+              <span className="text-3xl">🧙</span>
+            )}
+          </div>
+          <div className="flex-1">
+            <SectionTitle>Arena Sprite</SectionTitle>
+            <p className="mb-2 text-sm text-parchment-300">Upload a picture of yourself to fight with in the Arena.</p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleSpriteChange}
+              disabled={spriteBusy}
+              className="block w-full text-sm text-parchment-200 file:mr-3 file:min-h-11 file:rounded-xl file:border-0 file:bg-ember-500 file:px-4 file:py-2 file:font-semibold file:text-dungeon-900"
+            />
+            {spriteBusy && <p className="mt-1 text-sm text-parchment-300">Uploading…</p>}
+            {spriteError && <p className="mt-1 text-sm text-hp-500">{spriteError}</p>}
+          </div>
         </div>
       </Card>
 

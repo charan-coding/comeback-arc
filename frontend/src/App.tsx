@@ -4,6 +4,7 @@ import { useApp } from './store/AppProvider';
 import { Today } from './screens/Today';
 import { Party } from './screens/Party';
 import { Compare } from './screens/Compare';
+import { Arena } from './screens/Arena';
 import { Me } from './screens/Me';
 import { Settings } from './screens/Settings';
 import { Login } from './screens/Login';
@@ -12,6 +13,7 @@ const TABS = [
   { to: '/', label: 'Today', icon: '📜' },
   { to: '/party', label: 'Party', icon: '🛡️' },
   { to: '/compare', label: 'Compare', icon: '⚔️' },
+  { to: '/arena', label: 'Arena', icon: '🏟️' },
   { to: '/me', label: 'Me', icon: '🧙' },
   { to: '/settings', label: 'Settings', icon: '⚙️' },
 ];
@@ -32,6 +34,7 @@ function Shell() {
         <Route path="/" element={<Today />} />
         <Route path="/party" element={<Party />} />
         <Route path="/compare" element={<Compare />} />
+        <Route path="/arena" element={<Arena />} />
         <Route path="/me" element={<Me />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -43,12 +46,12 @@ function Shell() {
             to={tab.to}
             end={tab.to === '/'}
             className={({ isActive }) =>
-              `flex flex-1 flex-col items-center gap-0.5 py-3 text-sm font-medium transition-transform active:scale-90 ${
+              `flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium transition-transform active:scale-90 ${
                 isActive ? 'text-ember-400' : 'text-parchment-300'
               }`
             }
           >
-            <span className="text-2xl">{tab.icon}</span>
+            <span className="text-xl">{tab.icon}</span>
             {tab.label}
           </NavLink>
         ))}

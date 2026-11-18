@@ -17,7 +17,7 @@ var SHEET_LOGS = 'Logs';
 var SHEET_CONFIG = 'Config';
 var SHEET_PUSH = 'PushSubscriptions';
 
-var PLAYERS_HEADERS = ['playerId', 'name', 'class', 'passHash', 'createdAt'];
+var PLAYERS_HEADERS = ['playerId', 'name', 'class', 'passHash', 'createdAt', 'spriteUrl'];
 var HABITS_HEADERS = ['habitId', 'name', 'category', 'tier', 'weight', 'type', 'target', 'period', 'active', 'direction', 'unit', 'toleranceMinutes', 'group'];
 var LOGS_HEADERS = ['date', 'playerId', 'habitId', 'value', 'done', 'updatedAt'];
 var CONFIG_HEADERS = ['key', 'value'];
@@ -70,6 +70,7 @@ function setup() {
   ensureSheet_(ss, SHEET_LOGS, LOGS_HEADERS);
   ensureSheet_(ss, SHEET_CONFIG, CONFIG_HEADERS);
   ensureSheet_(ss, SHEET_PUSH, PUSH_HEADERS);
+  migrateAddColumn_(ss.getSheetByName(SHEET_PLAYERS), 'spriteUrl');
 
   var habitsSheet = ss.getSheetByName(SHEET_HABITS);
   if (habitsSheet.getLastRow() < 2) {
@@ -129,6 +130,19 @@ function ensureSheet_(ss, name, headers) {
   return sheet;
 }
 
+/**
+ * For a sheet that already existed before a new header was added to its *_HEADERS
+ * array (so `ensureSheet_`'s "only write headers on a brand-new sheet" path never
+ * runs again): appends the header to a new trailing column if it's not already there.
+ * Existing rows simply get a blank cell for it.
+ */
+function migrateAddColumn_(sheet, header) {
+  var lastCol = sheet.getLastColumn();
+  var headers = lastCol > 0 ? sheet.getRange(1, 1, 1, lastCol).getValues()[0] : [];
+  if (headers.indexOf(header) !== -1) return;
+  sheet.getRange(1, lastCol + 1).setValue(header);
+}
+
 function normalizeCell_(header, value) {
   if (!(value instanceof Date)) return value;
   if (DATE_ONLY_FIELDS[header]) return Utilities.formatDate(value, 'Etc/UTC', 'yyyy-MM-dd');
@@ -176,7 +190,7 @@ function doGet(e) {
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var players = sheetAsObjects_(ss.getSheetByName(SHEET_PLAYERS)).map(function (p) {
-    return { playerId: p.playerId, name: p.name, class: p.class, createdAt: p.createdAt }; // never expose passHash
+    return { playerId: p.playerId, name: p.name, class: p.class, createdAt: p.createdAt, spriteUrl: p.spriteUrl || '' }; // never expose passHash
   });
   var habits = sheetAsObjects_(ss.getSheetByName(SHEET_HABITS));
   var logs = sheetAsObjects_(ss.getSheetByName(SHEET_LOGS));
@@ -216,6 +230,8 @@ function doPost(e) {
         return registerPush_(body);
       case 'unregisterPush':
         return unregisterPush_(body);
+      case 'uploadSprite':
+        return uploadSprite_(body);
       default:
         return errorOut_('Unknown action: ' + body.action);
     }
@@ -269,7 +285,7 @@ function login_(body) {
   var auth = authenticate_(body.playerId, body.passphrase);
   if (!auth.ok) return errorOut_(auth.error);
   var data = auth.row.data;
-  return jsonOut_({ ok: true, player: { playerId: data[0], name: data[1], class: data[2], createdAt: data[4] } });
+  return jsonOut_({ ok: true, player: { playerId: data[0], name: data[1], class: data[2], createdAt: data[4], spriteUrl: data[5] || '' } });
 }
 
 function upsertLog_(sheet, logsCache, date, playerId, habitId, value, updatedAt) {
@@ -404,6 +420,43 @@ function unregisterPush_(body) {
   var rowIndex = findPushRowIndex_(sheet, body.playerId);
   if (rowIndex > 0) sheet.getRange(rowIndex, 6).setValue(false);
   return jsonOut_({ ok: true });
+}
+
+var SPRITE_FOLDER_NAME = 'Comeback Arc Sprites';
+
+function getOrCreateSpriteFolder_() {
+  var folders = DriveApp.getFoldersByName(SPRITE_FOLDER_NAME);
+  if (folders.hasNext()) return folders.next();
+  return DriveApp.createFolder(SPRITE_FOLDER_NAME);
+}
+
+/**
+ * Saves a player-uploaded avatar image to Drive (no new service/key — just the extra
+ * Drive OAuth scope Apps Script will prompt for) and stores a directly-embeddable URL
+ * on their Players row. The client is expected to have already resized/compressed the
+ * image to something small before base64-encoding it.
+ */
+function uploadSprite_(body) {
+  var auth = authenticate_(body.playerId, body.passphrase);
+  if (!auth.ok) return errorOut_(auth.error);
+  if (!body.imageBase64) return errorOut_('imageBase64 is required');
+
+  var mimeType = body.mimeType || 'image/jpeg';
+  var bytes = Utilities.base64Decode(body.imageBase64);
+  if (bytes.length > 400 * 1024) return errorOut_('Image is too large (max 400KB after compression)');
+
+  var blob = Utilities.newBlob(bytes, mimeType, body.playerId + '-sprite');
+  var folder = getOrCreateSpriteFolder_();
+  var file = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  var spriteUrl = 'https://drive.google.com/uc?export=view&id=' + file.getId();
+
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_PLAYERS);
+  var playerRow = findPlayerRow_(body.playerId);
+  var spriteCol = PLAYERS_HEADERS.indexOf('spriteUrl') + 1;
+  sheet.getRange(playerRow.rowIndex, spriteCol).setValue(spriteUrl);
+
+  return jsonOut_({ ok: true, spriteUrl: spriteUrl });
 }
 
 /** Fixed IST (+05:30, no DST) wall-clock minutes-of-day right now, mirroring frontend/src/lib/day.ts. */

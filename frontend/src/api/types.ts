@@ -50,6 +50,7 @@ export interface Player {
   class: string;
   passHash: string;
   createdAt: string; // ISO date (logical date of account creation)
+  spriteUrl?: string; // player-uploaded avatar, shown in the Arena; blank until they upload one
 }
 
 export interface LogRow {

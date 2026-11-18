@@ -62,6 +62,7 @@ export interface AppContextValue {
 
   logHabit: (date: string, habitId: string, value: number) => void;
   setOverride: (habitId: string, field: 'target' | 'active', value: number | boolean) => Promise<void>;
+  uploadSprite: (imageBase64: string, mimeType: string) => Promise<string>;
   sync: () => Promise<void>;
 }
 
@@ -271,6 +272,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [sessionState, demo]
   );
 
+  const uploadSprite = useCallback(
+    async (imageBase64: string, mimeType: string) => {
+      if (!sessionState) throw new Error('Not signed in');
+      if (demo) {
+        const localUrl = `data:${mimeType};base64,${imageBase64}`;
+        setPlayers((prev) => prev.map((p) => (p.playerId === sessionState.playerId ? { ...p, spriteUrl: localUrl } : p)));
+        return localUrl;
+      }
+      const res = await api.uploadSprite(sessionState.playerId, sessionState.passphrase, imageBase64, mimeType);
+      setPlayers((prev) => prev.map((p) => (p.playerId === sessionState.playerId ? { ...p, spriteUrl: res.spriteUrl } : p)));
+      return res.spriteUrl;
+    },
+    [sessionState, demo]
+  );
+
   const value: AppContextValue = {
     isDemoMode: demo,
     loading,
@@ -290,6 +306,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     config,
     logHabit,
     setOverride,
+    uploadSprite,
     sync,
   };
 

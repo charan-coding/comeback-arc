@@ -86,6 +86,10 @@ export async function unregisterPush(playerId: string, passphrase: string) {
   return post<{ ok: true }>({ action: 'unregisterPush', playerId, passphrase });
 }
 
+export async function uploadSprite(playerId: string, passphrase: string, imageBase64: string, mimeType: string) {
+  return post<{ spriteUrl: string }>({ action: 'uploadSprite', playerId, passphrase, imageBase64, mimeType });
+}
+
 export async function setHabitOverride(
   playerId: string,
   passphrase: string,
