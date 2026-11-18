@@ -449,12 +449,22 @@ function isWithinBackfillWindow_(dateStr) {
 // unsigned 0..255 domain everywhere else.
 // =====================================================================================
 
+// NOTE: BigInt literal suffixes (e.g. `3n`) parse as a syntax error in the Apps Script
+// editor's own save-time checker (not just old Rhino projects — it rejects the `n`
+// suffix outright), even though the V8 runtime itself supports BigInt. So this whole
+// section calls BigInt(...) explicitly everywhere instead of using `n` literals.
+var BI_0_ = BigInt(0);
+var BI_1_ = BigInt(1);
+var BI_2_ = BigInt(2);
+var BI_3_ = BigInt(3);
+
 var P256_P_ = BigInt('0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF');
-var P256_A_ = P256_P_ - 3n;
+var P256_A_ = P256_P_ - BI_3_;
 var P256_N_ = BigInt('0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551');
 var P256_GX_ = BigInt('0x6B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296');
 var P256_GY_ = BigInt('0x4FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5');
-var P256_INFINITY_ = { x: -1n, y: -1n };
+var P256_NEG1_ = BigInt(-1);
+var P256_INFINITY_ = { x: P256_NEG1_, y: P256_NEG1_ };
 
 function toSignedBytes_(unsignedArr) {
   var out = new Array(unsignedArr.length);
@@ -517,15 +527,15 @@ function hmacSha256Bytes_(keyUnsigned, dataUnsigned) {
 
 function p256Mod_(a, m) {
   var r = a % m;
-  return r < 0n ? r + m : r;
+  return r < BI_0_ ? r + m : r;
 }
 
 function p256ModInverse_(a, m) {
   var oldR = p256Mod_(a, m);
   var r = m;
-  var oldS = 1n;
-  var s = 0n;
-  while (r !== 0n) {
+  var oldS = BI_1_;
+  var s = BI_0_;
+  while (r !== BI_0_) {
     var q = oldR / r;
     var tr = oldR - q * r;
     oldR = r;
@@ -538,13 +548,13 @@ function p256ModInverse_(a, m) {
 }
 
 function p256IsInfinity_(p) {
-  return p.x === -1n && p.y === -1n;
+  return p.x === P256_NEG1_ && p.y === P256_NEG1_;
 }
 
 function p256Double_(p) {
-  if (p256IsInfinity_(p) || p.y === 0n) return P256_INFINITY_;
-  var lambda = p256Mod_((3n * p.x * p.x + P256_A_) * p256ModInverse_(2n * p.y, P256_P_), P256_P_);
-  var x3 = p256Mod_(lambda * lambda - 2n * p.x, P256_P_);
+  if (p256IsInfinity_(p) || p.y === BI_0_) return P256_INFINITY_;
+  var lambda = p256Mod_((BI_3_ * p.x * p.x + P256_A_) * p256ModInverse_(BI_2_ * p.y, P256_P_), P256_P_);
+  var x3 = p256Mod_(lambda * lambda - BI_2_ * p.x, P256_P_);
   var y3 = p256Mod_(lambda * (p.x - x3) - p.y, P256_P_);
   return { x: x3, y: y3 };
 }
@@ -553,7 +563,7 @@ function p256Add_(p1, p2) {
   if (p256IsInfinity_(p1)) return p2;
   if (p256IsInfinity_(p2)) return p1;
   if (p1.x === p2.x) {
-    if (p256Mod_(p1.y + p2.y, P256_P_) === 0n) return P256_INFINITY_;
+    if (p256Mod_(p1.y + p2.y, P256_P_) === BI_0_) return P256_INFINITY_;
     return p256Double_(p1);
   }
   var lambda = p256Mod_((p2.y - p1.y) * p256ModInverse_(p2.x - p1.x, P256_P_), P256_P_);
@@ -566,10 +576,10 @@ function p256ScalarMultiply_(k, point) {
   var result = P256_INFINITY_;
   var addend = point;
   var n = k;
-  while (n > 0n) {
-    if (n & 1n) result = p256Add_(result, addend);
+  while (n > BI_0_) {
+    if (n & BI_1_) result = p256Add_(result, addend);
     addend = p256Double_(addend);
-    n >>= 1n;
+    n >>= BI_1_;
   }
   return result;
 }
@@ -594,7 +604,7 @@ function rfc6979Nonce_(privateKey, hash) {
   for (;;) {
     V = hmacSha256Bytes_(K, V);
     var k = bytesToBigInt_(V);
-    if (k >= 1n && k < P256_N_) return k;
+    if (k >= BI_1_ && k < P256_N_) return k;
     K = hmacSha256Bytes_(K, V.concat([0x00]));
     V = hmacSha256Bytes_(K, V);
   }
@@ -645,7 +655,7 @@ function buildVapidJwt_(privateKeyHex, audience, subject, expirySeconds) {
 function generateVapidKeyPair_() {
   var seed = Utilities.getUuid() + Utilities.getUuid() + new Date().getTime() + Math.random();
   var hash = sha256Bytes_(asciiToBytes_(seed));
-  var scalar = p256Mod_(bytesToBigInt_(hash), P256_N_ - 1n) + 1n;
+  var scalar = p256Mod_(bytesToBigInt_(hash), P256_N_ - BI_1_) + BI_1_;
   var privateKeyHex = scalar.toString(16);
   while (privateKeyHex.length < 64) privateKeyHex = '0' + privateKeyHex;
   var publicKeyBytes = privateKeyToPublicKeyBytes_(privateKeyHex);
