@@ -137,6 +137,7 @@ export interface RoundLog {
   damageDealt: Record<string, number>;
   hpAfter: Record<string, number>;
   eliminated: string[];
+  events: string[];
 }
 
 export interface BossFightResult {
@@ -146,14 +147,22 @@ export interface BossFightResult {
 }
 
 const MAX_ROUNDS = 20;
+export const CRIT_CHANCE = 0.15;
+export const CRIT_MULTIPLIER = 1.5;
+export const DODGE_CHANCE = 0.1;
 
 /**
  * Round-based, simultaneous N-player free-for-all: every living fighter damages every
  * other living fighter at once each round (so turn order never matters), until ≤1
  * remain. A simultaneous full wipe is broken by smallest overkill (closest to
- * surviving). No randomness; a round-cap stalemate (e.g. everyone at 0 attack) is a draw.
+ * surviving). A round-cap stalemate (e.g. everyone at 0 attack) is a draw.
+ *
+ * `rng`, if given, adds a little swing (a dodge, a crit) purely for flavor/"dopamine" —
+ * pass none (the default) for the original fully deterministic behavior, which is what
+ * every existing test below exercises; real gameplay passes a per-day seeded RNG
+ * (`lib/rng.ts`'s `dailyRng`) so the swing is stable across reloads of the same day.
  */
-export function simulateBossFight(fighters: Fighter[]): BossFightResult {
+export function simulateBossFight(fighters: Fighter[], rng?: () => number): BossFightResult {
   if (fighters.length === 0) return { rounds: [], winnerId: null, survivorIds: [] };
   if (fighters.length === 1) return { rounds: [], winnerId: fighters[0].playerId, survivorIds: [fighters[0].playerId] };
 
@@ -164,6 +173,7 @@ export function simulateBossFight(fighters: Fighter[]): BossFightResult {
 
   for (let round = 1; round <= MAX_ROUNDS && alive.length > 1; round += 1) {
     const damage: Record<string, number> = {};
+    const events: string[] = [];
     for (const id of alive) damage[id] = 0;
 
     for (const attackerId of alive) {
@@ -171,7 +181,16 @@ export function simulateBossFight(fighters: Fighter[]): BossFightResult {
       for (const defenderId of alive) {
         if (defenderId === attackerId) continue;
         const defender = byId.get(defenderId)!;
-        damage[defenderId] += attacker.attack * (1 + defender.vulnerablePercent / 100);
+        if (rng && rng() < DODGE_CHANCE) {
+          events.push(`${defender.name} dodged ${attacker.name}'s strike!`);
+          continue;
+        }
+        let dmg = attacker.attack * (1 + defender.vulnerablePercent / 100);
+        if (rng && rng() < CRIT_CHANCE) {
+          dmg *= CRIT_MULTIPLIER;
+          events.push(`${attacker.name} landed a critical hit on ${defender.name}!`);
+        }
+        damage[defenderId] += dmg;
       }
     }
 
@@ -183,7 +202,7 @@ export function simulateBossFight(fighters: Fighter[]): BossFightResult {
       hpAfter[id] = newHp;
       if (newHp <= 0) eliminated.push(id);
     }
-    rounds.push({ round, damageDealt: damage, hpAfter, eliminated });
+    rounds.push({ round, damageDealt: damage, hpAfter, eliminated, events });
 
     if (eliminated.length === alive.length) {
       let bestId = eliminated[0];

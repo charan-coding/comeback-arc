@@ -1,4 +1,4 @@
-import { Habit, LogRow, Player, ConfigMap, DEFAULT_CONFIG, Direction, HabitType, Category, Tier, Period } from './types';
+import { Habit, LogRow, Player, ConfigMap, DEFAULT_CONFIG, Direction, HabitType, Category, Tier, Period, VisionBoardImage } from './types';
 import { ConfigRow } from '../lib/overrides';
 
 /** Raw rows come back from Apps Script as loosely-typed sheet cells (strings/numbers/booleans/''). */
@@ -64,6 +64,17 @@ export function parseLogs(rows: RawRow[]): LogRow[] {
     value: toNum(r.value),
     done: toBool(r.done),
     updatedAt: String(r.updatedAt),
+  }));
+}
+
+export function parseVisionBoard(rows: RawRow[]): VisionBoardImage[] {
+  return rows.map((r) => ({
+    imageId: String(r.imageId),
+    playerId: String(r.playerId),
+    imageUrl: String(r.imageUrl),
+    width: toNum(r.width),
+    height: toNum(r.height),
+    addedAt: String(r.addedAt),
   }));
 }
 

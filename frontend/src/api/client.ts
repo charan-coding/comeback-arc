@@ -1,5 +1,5 @@
-import { Habit, LogRow, Player, ConfigMap } from './types';
-import { parseHabits, parseLogs, parsePlayers, parseConfig } from './parse';
+import { Habit, LogRow, Player, ConfigMap, VisionBoardImage } from './types';
+import { parseHabits, parseLogs, parsePlayers, parseConfig, parseVisionBoard } from './parse';
 import { ConfigRow } from '../lib/overrides';
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
@@ -12,6 +12,7 @@ export interface ReadResult {
   logs: LogRow[];
   config: ConfigMap;
   configRows: ConfigRow[];
+  visionBoard: VisionBoardImage[];
 }
 
 class ApiError extends Error {}
@@ -32,6 +33,7 @@ export async function fetchAll(since?: string): Promise<ReadResult> {
     logs: parseLogs(json.logs),
     config: parseConfig(json.config),
     configRows: json.config,
+    visionBoard: parseVisionBoard(json.visionBoard || []),
   };
 }
 
@@ -88,6 +90,21 @@ export async function unregisterPush(playerId: string, passphrase: string) {
 
 export async function uploadSprite(playerId: string, passphrase: string, imageBase64: string, mimeType: string) {
   return post<{ spriteUrl: string }>({ action: 'uploadSprite', playerId, passphrase, imageBase64, mimeType });
+}
+
+export async function addVisionBoardImage(
+  playerId: string,
+  passphrase: string,
+  imageBase64: string,
+  mimeType: string,
+  width: number,
+  height: number
+) {
+  return post<{ imageId: string; imageUrl: string }>({ action: 'addVisionBoardImage', playerId, passphrase, imageBase64, mimeType, width, height });
+}
+
+export async function removeVisionBoardImage(playerId: string, passphrase: string, imageId: string) {
+  return post<{ ok: true }>({ action: 'removeVisionBoardImage', playerId, passphrase, imageId });
 }
 
 export async function setHabitOverride(

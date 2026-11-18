@@ -191,12 +191,40 @@ nobody) is left standing — plus a running win/loss record. This is entirely de
 from your existing `Logs`/`Habits` data (`frontend/src/lib/combat.ts`, unit-tested) —
 no new Sheet, no backend changes needed to see it.
 
-**Uploading a sprite** (optional, to show your own picture instead of the default
-avatar) does need the latest `Code.gs`: it adds a `spriteUrl` column to `Players` and
-saves uploads to a Drive folder ("Comeback Arc Sprites") via `DriveApp` — no new
-service or key, just an extra Drive permission Apps Script will ask you to approve the
-next time you authorize (same "Advanced → Go to (unsafe) → Allow" flow as before). Set
-it up on the Me screen, under "Arena Sprite".
+**Uploading a sprite, or using the Vision Board** (both optional) do need the latest
+`Code.gs`: between them they add a `spriteUrl` column to `Players`, a new
+`VisionBoard` sheet, and save uploads to two Drive folders ("Comeback Arc Sprites" and
+"Comeback Arc Vision Boards") via `DriveApp` — no new service or key, just an extra
+Drive permission Apps Script will ask you to approve the next time you authorize (same
+"Advanced → Go to (unsafe) → Allow" flow as before, one paste-and-redeploy covers both
+features). Set the sprite up on the Me screen under "Arena Sprite", and the Vision
+Board right below it.
+
+### Your Campaign: an auto-battler ladder
+
+Alongside the nightly party fight, each player has their own ongoing PvE run: your
+current good-day streak *is* your floor on an escalating enemy ladder
+(`frontend/src/lib/autobattle.ts`) — no new storage, it's the same streak
+`scoring.ts` already computes. Clear your habits today and you beat today's enemy,
+advancing to a tougher one tomorrow; a bad day ends the run back at floor 1 (same
+rest-token protection as the streak itself already has).
+
+To make an off day feel less like nothing happened, a bad day still rolls a small
+**consolation chance** — scaled by how much attack your partial relics still gave you
+— for a "wounded it but it got away" result instead of a flat loss. And both the PvP
+fight and this campaign now have a little RNG swing (15% crit, 10% dodge) layered on
+top of the deterministic math, seeded per-day (`frontend/src/lib/rng.ts`) so reloading
+the page shows the same rolls for that day instead of re-randomizing every visit.
+
+### Vision Board
+
+Each player can drop in a few images (Me screen) that auto-collage via a simple CSS
+masonry layout — no manual arranging. Images are saved as files (not pasted URLs — a
+deliberate choice: fetching arbitrary external image URLs server-side would mean the
+backend downloading from wherever you point it, which this project avoids) and stored
+via the same Drive-folder pattern as sprite uploads (`addVisionBoardImage`/
+`removeVisionBoardImage` in `Code.gs`, a `VisionBoard` sheet). Visible only to you for
+now (not shown to other party members yet).
 
 ### A balance note
 
@@ -268,6 +296,10 @@ All of the interesting logic is pure, dependency-free TypeScript, unit tested in
   clearing weekly habits), run history (consecutive cleared floors), and badges.
 - **`combat.ts`** — the Arena's relics/curses/N-player fight simulation and win/loss
   history, all derived from `scoring.ts`'s `perHabit` map (see section 8).
+- **`autobattle.ts`** — the PvE campaign ladder, driven entirely by `scoring.ts`'s
+  good-day streak (see section 8).
+- **`rng.ts`** — the shared seeded PRNG (mulberry32) used for combat's crit/dodge and
+  the campaign's consolation rolls, and by `demoData.ts`.
 
 ## Known assumptions & limitations
 
@@ -301,6 +333,12 @@ All of the interesting logic is pure, dependency-free TypeScript, unit tested in
   done/not-done on a single day the way daily habits do).
 - Relic/curse names are original flavor text (no copyrighted IP); only the habit's
   tier (core/bonus) and category drive the actual numbers.
+- **The campaign ladder resets to floor 1 on a miss** rather than stepping back
+  gradually — matches the existing streak semantics exactly (including rest-token
+  protection) but is worth knowing if it feels harsh; an easy retune in
+  `autobattle.ts`.
+- **Vision boards are private to each player** for now (not shown to the rest of the
+  party) — a reasonable place to extend if you want to show them off on Compare/Party.
 
 ## Assumptions made during the build
 

@@ -5,15 +5,33 @@ import { computeStreaks } from '../lib/scoring';
 import { totalXp, levelFromXp, classTitle, computeFloor, computeRuns, computeEarnedBadges, BADGE_DEFINITIONS } from '../lib/rpg';
 import { Card, SectionTitle } from '../components/ui/Card';
 import { ProgressBar } from '../components/ui/ProgressBar';
-import { compressSpriteFile } from '../lib/sprite';
+import { compressSpriteFile, compressBoardImage } from '../lib/sprite';
 
 export function Me() {
-  const { session, players, logs, myHabits, baseHabits, config, setOverride, uploadSprite, logout, isDemoMode } = useApp();
+  const {
+    session,
+    players,
+    logs,
+    myHabits,
+    baseHabits,
+    config,
+    setOverride,
+    uploadSprite,
+    visionBoard,
+    addVisionBoardImage,
+    removeVisionBoardImage,
+    logout,
+    isDemoMode,
+  } = useApp();
   const todayStr = today(config.rolloverHour);
   const [editingHabits, setEditingHabits] = useState(false);
   const [spriteBusy, setSpriteBusy] = useState(false);
   const [spriteError, setSpriteError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [boardBusy, setBoardBusy] = useState(false);
+  const [boardError, setBoardError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const boardInputRef = useRef<HTMLInputElement>(null);
 
   const player = players.find((p) => p.playerId === session?.playerId);
   const myLogs = useMemo(() => logs.filter((l) => l.playerId === session?.playerId), [logs, session]);
@@ -47,6 +65,7 @@ export function Me() {
   );
 
   const historyDays = daysBetween(addDays(todayStr, -13), todayStr);
+  const myBoard = visionBoard.filter((img) => img.playerId === session?.playerId);
 
   if (!session || !player) return null;
 
@@ -64,6 +83,34 @@ export function Me() {
       setSpriteBusy(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  }
+
+  async function addBoardFiles(files: FileList | File[]) {
+    const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    if (imageFiles.length === 0) return;
+    setBoardBusy(true);
+    setBoardError(null);
+    try {
+      for (const file of imageFiles) {
+        const { base64, mimeType, width, height } = await compressBoardImage(file);
+        await addVisionBoardImage(base64, mimeType, width, height);
+      }
+    } catch (err) {
+      setBoardError(err instanceof Error ? err.message : 'Could not add that image');
+    } finally {
+      setBoardBusy(false);
+    }
+  }
+
+  function handleBoardInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files) addBoardFiles(e.target.files);
+    if (boardInputRef.current) boardInputRef.current.value = '';
+  }
+
+  function handleBoardDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setDragOver(false);
+    if (e.dataTransfer.files) addBoardFiles(e.dataTransfer.files);
   }
 
   return (
@@ -158,6 +205,43 @@ export function Me() {
             );
           })}
         </div>
+      </Card>
+
+      <Card>
+        <SectionTitle>Vision Board</SectionTitle>
+        <p className="mb-2 text-sm text-parchment-300">Drop in a few images (saved from Pinterest or anywhere) and they'll collage together automatically.</p>
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleBoardDrop}
+          onClick={() => boardInputRef.current?.click()}
+          className={`mb-3 flex min-h-24 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed text-sm transition-colors ${
+            dragOver ? 'border-ember-400 bg-ember-500/10 text-ember-400' : 'border-dungeon-500 text-parchment-300'
+          }`}
+        >
+          {boardBusy ? 'Adding…' : 'Drop images here, or tap to choose'}
+        </div>
+        <input ref={boardInputRef} type="file" accept="image/*" multiple onChange={handleBoardInputChange} className="hidden" />
+        {boardError && <p className="mb-2 text-sm text-hp-500">{boardError}</p>}
+        {myBoard.length > 0 && (
+          <div className="columns-2 gap-2 sm:columns-3">
+            {myBoard.map((img) => (
+              <div key={img.imageId} className="group relative mb-2 break-inside-avoid">
+                <img src={img.imageUrl} alt="Vision board item" className="w-full rounded-lg" />
+                <button
+                  onClick={() => removeVisionBoardImage(img.imageId)}
+                  className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-full bg-dungeon-900/80 text-base text-parchment-50"
+                  aria-label="Remove image"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
 
       <Card>

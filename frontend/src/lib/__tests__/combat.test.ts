@@ -91,6 +91,26 @@ describe('simulateBossFight', () => {
     expect(result.winnerId).toBe('A');
     expect(result.rounds).toHaveLength(0);
   });
+
+  it('applies a crit (1.5x) when the rng rolls below CRIT_CHANCE, with no rng call in the default (no-rng) path', () => {
+    // Two rng() calls per ordered pair: a dodge check, then (if not dodged) a crit check.
+    // Pair A->B: dodge=0.99 (no dodge), crit=0.01 (crit). Pair B->A: dodge=0.99, crit=0.99 (no crit).
+    const sequence = [0.99, 0.01, 0.99, 0.99];
+    let i = 0;
+    const rng = () => sequence[i++ % sequence.length];
+    const result = simulateBossFight([fighter('A', 100, 10), fighter('B', 100, 4)], rng);
+    expect(result.rounds[0].damageDealt.B).toBeCloseTo(15); // 10 * 1.5
+    expect(result.rounds[0].damageDealt.A).toBeCloseTo(4);
+    expect(result.rounds[0].events.some((e) => e.includes('critical'))).toBe(true);
+  });
+
+  it('skips a hit entirely when the rng rolls below DODGE_CHANCE', () => {
+    const rng = () => 0.01; // always "dodge" on the very first check for every pair
+    const result = simulateBossFight([fighter('A', 100, 10), fighter('B', 100, 4)], rng);
+    expect(result.rounds[0].damageDealt.A).toBe(0);
+    expect(result.rounds[0].damageDealt.B).toBe(0);
+    expect(result.rounds[0].events.every((e) => e.includes('dodged'))).toBe(true);
+  });
 });
 
 describe('computeBossFightHistory', () => {

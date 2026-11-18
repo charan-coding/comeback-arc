@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { Player, Habit, LogRow, ConfigMap } from '../api/types';
+import { Player, Habit, LogRow, ConfigMap, VisionBoardImage } from '../api/types';
 import * as api from '../api/client';
 import { parseConfig } from '../api/parse';
 import { ConfigRow } from '../lib/overrides';
@@ -17,6 +17,7 @@ interface Cache {
   habits: Habit[];
   logs: LogRow[];
   configRows: ConfigRow[];
+  visionBoard: VisionBoardImage[];
 }
 
 function loadCache(): Cache | null {
@@ -59,10 +60,13 @@ export interface AppContextValue {
   habitsForPlayerId: (playerId: string) => Habit[];
   logs: LogRow[];
   config: ConfigMap;
+  visionBoard: VisionBoardImage[];
 
   logHabit: (date: string, habitId: string, value: number) => void;
   setOverride: (habitId: string, field: 'target' | 'active', value: number | boolean) => Promise<void>;
   uploadSprite: (imageBase64: string, mimeType: string) => Promise<string>;
+  addVisionBoardImage: (imageBase64: string, mimeType: string, width: number, height: number) => Promise<void>;
+  removeVisionBoardImage: (imageId: string) => Promise<void>;
   sync: () => Promise<void>;
 }
 
@@ -81,6 +85,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [baseHabits, setBaseHabits] = useState<Habit[]>(DEFAULT_HABITS);
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [configRows, setConfigRows] = useState<ConfigRow[]>([]);
+  const [visionBoard, setVisionBoard] = useState<VisionBoardImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [online, setOnline] = useState(navigator.onLine);
@@ -127,6 +132,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setBaseHabits(cache.habits);
         setLogs(cache.logs);
         setConfigRows(cache.configRows);
+        setVisionBoard(cache.visionBoard ?? []);
         setLoading(false);
       }
       try {
@@ -136,8 +142,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setBaseHabits(result.habits);
         setLogs(result.logs);
         setConfigRows(result.configRows);
+        setVisionBoard(result.visionBoard);
         setLoading(false);
-        saveCache({ players: result.players, habits: result.habits, logs: result.logs, configRows: result.configRows });
+        saveCache({
+          players: result.players,
+          habits: result.habits,
+          logs: result.logs,
+          configRows: result.configRows,
+          visionBoard: result.visionBoard,
+        });
       } catch (e) {
         if (!mounted) return;
         setError(e instanceof Error ? e.message : 'Failed to load data');
@@ -166,9 +179,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!demo) {
-      saveCache({ players, habits: baseHabits, logs, configRows });
+      saveCache({ players, habits: baseHabits, logs, configRows, visionBoard });
     }
-  }, [demo, players, baseHabits, logs, configRows]);
+  }, [demo, players, baseHabits, logs, configRows, visionBoard]);
 
   const sync = useCallback(async () => {
     if (demo || !sessionState || !online) return;
@@ -191,7 +204,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setBaseHabits(result.habits);
       setLogs(result.logs);
       setConfigRows(result.configRows);
-      saveCache({ players: result.players, habits: result.habits, logs: result.logs, configRows: result.configRows });
+      setVisionBoard(result.visionBoard);
+      saveCache({
+        players: result.players,
+        habits: result.habits,
+        logs: result.logs,
+        configRows: result.configRows,
+        visionBoard: result.visionBoard,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sync failed');
     } finally {
@@ -287,6 +307,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [sessionState, demo]
   );
 
+  const addVisionBoardImage = useCallback(
+    async (imageBase64: string, mimeType: string, width: number, height: number) => {
+      if (!sessionState) return;
+      if (demo) {
+        const localUrl = `data:${mimeType};base64,${imageBase64}`;
+        setVisionBoard((prev) => [
+          ...prev,
+          { imageId: `local_${Date.now()}`, playerId: sessionState.playerId, imageUrl: localUrl, width, height, addedAt: new Date().toISOString() },
+        ]);
+        return;
+      }
+      const res = await api.addVisionBoardImage(sessionState.playerId, sessionState.passphrase, imageBase64, mimeType, width, height);
+      setVisionBoard((prev) => [
+        ...prev,
+        { imageId: res.imageId, playerId: sessionState.playerId, imageUrl: res.imageUrl, width, height, addedAt: new Date().toISOString() },
+      ]);
+    },
+    [sessionState, demo]
+  );
+
+  const removeVisionBoardImage = useCallback(
+    async (imageId: string) => {
+      if (!sessionState) return;
+      setVisionBoard((prev) => prev.filter((img) => img.imageId !== imageId));
+      if (demo) return;
+      await api.removeVisionBoardImage(sessionState.playerId, sessionState.passphrase, imageId);
+    },
+    [sessionState, demo]
+  );
+
   const value: AppContextValue = {
     isDemoMode: demo,
     loading,
@@ -304,9 +354,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     habitsForPlayerId,
     logs,
     config,
+    visionBoard,
     logHabit,
     setOverride,
     uploadSprite,
+    addVisionBoardImage,
+    removeVisionBoardImage,
     sync,
   };
 

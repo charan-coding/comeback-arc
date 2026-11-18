@@ -16,12 +16,14 @@ var SHEET_HABITS = 'Habits';
 var SHEET_LOGS = 'Logs';
 var SHEET_CONFIG = 'Config';
 var SHEET_PUSH = 'PushSubscriptions';
+var SHEET_VISION = 'VisionBoard';
 
 var PLAYERS_HEADERS = ['playerId', 'name', 'class', 'passHash', 'createdAt', 'spriteUrl'];
 var HABITS_HEADERS = ['habitId', 'name', 'category', 'tier', 'weight', 'type', 'target', 'period', 'active', 'direction', 'unit', 'toleranceMinutes', 'group'];
 var LOGS_HEADERS = ['date', 'playerId', 'habitId', 'value', 'done', 'updatedAt'];
 var CONFIG_HEADERS = ['key', 'value'];
 var PUSH_HEADERS = ['playerId', 'endpoint', 'p256dh', 'auth', 'reminderTimes', 'enabled', 'updatedAt'];
+var VISION_HEADERS = ['imageId', 'playerId', 'imageUrl', 'fileId', 'width', 'height', 'addedAt'];
 
 /**
  * Default habits. Keep this in sync with frontend/src/lib/habitDefs.ts — the
@@ -70,6 +72,7 @@ function setup() {
   ensureSheet_(ss, SHEET_LOGS, LOGS_HEADERS);
   ensureSheet_(ss, SHEET_CONFIG, CONFIG_HEADERS);
   ensureSheet_(ss, SHEET_PUSH, PUSH_HEADERS);
+  ensureSheet_(ss, SHEET_VISION, VISION_HEADERS);
   migrateAddColumn_(ss.getSheetByName(SHEET_PLAYERS), 'spriteUrl');
 
   var habitsSheet = ss.getSheetByName(SHEET_HABITS);
@@ -201,7 +204,11 @@ function doGet(e) {
     logs = logs.filter(function (l) { return String(l.updatedAt) > since; });
   }
 
-  return jsonOut_({ ok: true, players: players, habits: habits, logs: logs, config: config });
+  var visionBoard = sheetAsObjects_(ss.getSheetByName(SHEET_VISION)).map(function (v) {
+    return { imageId: v.imageId, playerId: v.playerId, imageUrl: v.imageUrl, width: v.width, height: v.height, addedAt: v.addedAt };
+  });
+
+  return jsonOut_({ ok: true, players: players, habits: habits, logs: logs, config: config, visionBoard: visionBoard });
 }
 
 function doPost(e) {
@@ -232,6 +239,10 @@ function doPost(e) {
         return unregisterPush_(body);
       case 'uploadSprite':
         return uploadSprite_(body);
+      case 'addVisionBoardImage':
+        return addVisionBoardImage_(body);
+      case 'removeVisionBoardImage':
+        return removeVisionBoardImage_(body);
       default:
         return errorOut_('Unknown action: ' + body.action);
     }
@@ -457,6 +468,68 @@ function uploadSprite_(body) {
   sheet.getRange(playerRow.rowIndex, spriteCol).setValue(spriteUrl);
 
   return jsonOut_({ ok: true, spriteUrl: spriteUrl });
+}
+
+var VISION_FOLDER_NAME = 'Comeback Arc Vision Boards';
+
+function getOrCreateVisionFolder_() {
+  var folders = DriveApp.getFoldersByName(VISION_FOLDER_NAME);
+  if (folders.hasNext()) return folders.next();
+  return DriveApp.createFolder(VISION_FOLDER_NAME);
+}
+
+/** Adds one image to the signed-in player's vision board (Drive-backed, same pattern as uploadSprite_, with a higher size cap since these are collage images, not tiny avatars). */
+function addVisionBoardImage_(body) {
+  var auth = authenticate_(body.playerId, body.passphrase);
+  if (!auth.ok) return errorOut_(auth.error);
+  if (!body.imageBase64) return errorOut_('imageBase64 is required');
+
+  var mimeType = body.mimeType || 'image/jpeg';
+  var bytes = Utilities.base64Decode(body.imageBase64);
+  if (bytes.length > 1200 * 1024) return errorOut_('Image is too large (max 1.2MB after compression)');
+
+  var blob = Utilities.newBlob(bytes, mimeType, body.playerId + '-vision');
+  var folder = getOrCreateVisionFolder_();
+  var file = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  var imageUrl = 'https://drive.google.com/uc?export=view&id=' + file.getId();
+  var imageId = 'vb_' + Utilities.getUuid().slice(0, 8);
+
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_VISION);
+  sheet.appendRow([imageId, body.playerId, imageUrl, file.getId(), body.width || 0, body.height || 0, new Date().toISOString()]);
+
+  return jsonOut_({ ok: true, imageId: imageId, imageUrl: imageUrl });
+}
+
+/** Removes one of the signed-in player's own vision-board images (ownership checked — you can only remove your own). */
+function removeVisionBoardImage_(body) {
+  var auth = authenticate_(body.playerId, body.passphrase);
+  if (!auth.ok) return errorOut_(auth.error);
+  if (!body.imageId) return errorOut_('imageId is required');
+
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_VISION);
+  var rows = sheetAsObjects_(sheet);
+  var rowIndex = -1;
+  var fileId = null;
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].imageId === body.imageId) {
+      if (rows[i].playerId !== body.playerId) return errorOut_('You can only remove your own vision board images');
+      rowIndex = i + 2;
+      fileId = rows[i].fileId;
+      break;
+    }
+  }
+  if (rowIndex < 0) return errorOut_('Image not found');
+
+  sheet.deleteRow(rowIndex);
+  if (fileId) {
+    try {
+      DriveApp.getFileById(fileId).setTrashed(true);
+    } catch (err) {
+      Logger.log('Could not trash vision board file ' + fileId + ': ' + err);
+    }
+  }
+  return jsonOut_({ ok: true });
 }
 
 /** Fixed IST (+05:30, no DST) wall-clock minutes-of-day right now, mirroring frontend/src/lib/day.ts. */

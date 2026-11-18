@@ -62,6 +62,15 @@ export interface LogRow {
   updatedAt: string; // ISO timestamp
 }
 
+export interface VisionBoardImage {
+  imageId: string;
+  playerId: string;
+  imageUrl: string;
+  width: number;
+  height: number;
+  addedAt: string;
+}
+
 export interface ConfigMap {
   rolloverHour: number;
   backfillDays: number;
