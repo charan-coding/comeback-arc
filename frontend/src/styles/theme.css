@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root,
+:root[data-theme='dungeon'] {
+  --dungeon-900: 18 13 22;
+  --dungeon-800: 27 20 32;
+  --dungeon-700: 39 28 46;
+  --dungeon-600: 53 38 65;
+  --dungeon-500: 74 52 89;
+  --parchment-50: 247 240 227;
+  --parchment-100: 239 227 204;
+  --parchment-200: 221 201 158;
+  --parchment-300: 201 171 111;
+  --ember-400: 232 163 61;
+  --ember-500: 215 134 42;
+  --ember-600: 184 102 29;
+  --hp-500: 194 59 59;
+  --mana-500: 59 111 194;
+  --good-500: 59 194 107;
+}
+
+:root[data-theme='parchment'] {
+  --dungeon-900: 237 228 204;
+  --dungeon-800: 228 216 188;
+  --dungeon-700: 218 203 170;
+  --dungeon-600: 199 180 140;
+  --dungeon-500: 176 153 110;
+  --parchment-50: 46 33 25;
+  --parchment-100: 61 45 33;
+  --parchment-200: 90 68 48;
+  --parchment-300: 120 95 68;
+  --ember-400: 180 110 20;
+  --ember-500: 160 90 10;
+  --ember-600: 140 75 5;
+  --hp-500: 176 40 40;
+  --mana-500: 40 80 170;
+  --good-500: 30 140 70;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  background-color: rgb(var(--dungeon-900));
+  color: rgb(var(--parchment-100));
+}
