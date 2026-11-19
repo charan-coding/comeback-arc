@@ -33,6 +33,8 @@ jobs:
           # Set a VITE_API_URL repository secret once your Apps Script Web App is deployed
           # (see README) to switch this build from demo mode to your real party data.
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          # The VAPID public key setup() logs in Code.gs — needed for push reminders.
+          VITE_VAPID_PUBLIC_KEY: ${{ secrets.VITE_VAPID_PUBLIC_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: frontend/dist
